@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>码道小助手</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #ededed;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .phone {
+      width: 375px;
+      height: 720px;
+      background: #f5f5f5;
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    }
+    .header {
+      background: #2e2e2e;
+      color: #fff;
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    .header small {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: #aaa;
+      margin-top: 2px;
+    }
+    .chat {
+      flex: 1;
+      padding: 16px 12px;
+      overflow-y: auto;
+      background: #ededed;
+    }
+    /* 时间分割线：灰底圆角小药丸 */
+    .divider {
+      text-align: center;
+      margin: 10px 0 14px;
+    }
+    .divider span {
+      display: inline-block;
+      background: #d8d8d8;
+      color: #666;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+    .msg {
+      display: flex;
+      margin-bottom: 12px;
+      align-items: flex-end;
+      animation: popIn 0.25s ease-out;
+    }
+    .msg.them { justify-content: flex-start; }
+    .msg.me   { justify-content: flex-end; }
+    @keyframes popIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .bubble {
+      position: relative;
+      max-width: 72%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .them .bubble {
+      background: #fff;
+      color: #111;
+      border-top-left-radius: 2px;
+    }
+    .me .bubble {
+      background: #98e26b;
+      color: #111;
+      border-top-right-radius: 2px;
+    }
+    /* 气泡小尾巴：朝向头像一侧 */
+    .them .bubble::before {
+      content: '';
+      position: absolute;
+      left: -5px;
+      bottom: 6px;
+      border: 5px solid transparent;
+      border-right-color: #fff;
+      border-bottom-color: #fff;
+      border-radius: 2px;
+    }
+    .me .bubble::before {
+      content: '';
+      position: absolute;
+      right: -5px;
+      bottom: 6px;
+      border: 5px solid transparent;
+      border-left-color: #98e26b;
+      border-bottom-color: #98e26b;
+      border-radius: 2px;
+    }
+    .typing {
+      display: none;
+      justify-content: flex-start;
+      margin-bottom: 12px;
+    }
+    .typing .bubble {
+      background: #fff;
+      border-top-left-radius: 2px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 11px 13px;
+      color: #4caf50;
+      font-size: 13px;
+    }
+    .typing .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: blink 1.2s infinite ease-in-out;
+    }
+    .typing .dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+    /* 省略号循环动效 */
+    .typing .ellipsis::after {
+      content: '…';
+      animation: dots 1.4s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+      100% { content: ''; }
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="header">码道小助手<small>在线</small></div>
+    <div class="chat" id="chat">
+      <div class="typing" id="typing">
+        <div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span>对方正在输入<span class="ellipsis"></span></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // 7 句对话脚本，整体循环播放
+    const SCRIPT = [
+      { side: 'them', text: '在吗？' },
+      { side: 'me',   text: '在的，怎么啦？' },
+      { side: 'them', text: '我想用 AI 做一个无限动画，听说可以用 git 边做边回退？' },
+      { side: 'me',   text: '对，思路很简单。' },
+      { side: 'them', text: '满意就 commit，不满意就 checkout / reset 回退再改？' },
+      { side: 'me',   text: '懂了，那我先去试试。' },
+      { side: 'them', text: '👍 有不懂的随时问。' },
+    ];
+
+    const chat = document.getElementById('chat');
+    const typing = document.getElementById('typing');
+
+    function scrollToBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function showTyping() {
+      typing.style.display = 'flex';
+      scrollToBottom();
+    }
+
+    function hideTyping() {
+      typing.style.display = 'none';
+    }
+
+    function addDivider(text) {
+      const div = document.createElement('div');
+      div.className = 'divider';
+      div.innerHTML = '<span>' + text + '</span>';
+      chat.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addMessage(side, text) {
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ' + side;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      chat.appendChild(wrap);
+      scrollToBottom();
+    }
+
+    let idx = 0;
+    async function playLoop() {
+      // 每轮循环开始时插入一条时间分割线
+      if (idx % SCRIPT.length === 0) {
+        addDivider('今天 ' + new Date().toTimeString().slice(0, 5));
+      }
+      const { side, text } = SCRIPT[idx % SCRIPT.length];
+      idx++;
+      // 对方发言前先显示"正在输入"动效
+      if (side === 'them') {
+        showTyping();
+        await new Promise(r => setTimeout(r, 1200));
+        hideTyping();
+      }
+      addMessage(side, text);
+      const pause = side === 'me' ? 700 : 1400;
+      await new Promise(r => setTimeout(r, pause));
+      playLoop();
+    }
+
+    // 启动动画循环
+    setTimeout(() => {
+      showTyping();
+      setTimeout(() => {
+        hideTyping();
+        playLoop();
+      }, 800);
+    }, 500);
+  </script>
+</body>
+</html>
